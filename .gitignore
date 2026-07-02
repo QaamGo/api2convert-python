@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Build / dist
+/build/
+/dist/
+src/api2convert/_version.py
+
+# Virtualenvs
+.venv/
+venv/
+
+# Test / coverage / type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+coverage.cobertura.xml
+junit.xml
+htmlcov/
+
+# Editors
+.idea/
+.vscode/
+*.log

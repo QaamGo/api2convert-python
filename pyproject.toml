@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling>=1.27", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "api2convert"
+dynamic = ["version"]
+description = "Official Python SDK for the API2Convert file-conversion API. Convert, compress and transform images, documents, audio, video, ebooks, archives and CAD with one line of code."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Qaamgo Media GmbH" }]
+keywords = ["api2convert", "file conversion", "convert", "pdf", "image", "video", "audio", "ocr", "sdk", "api"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.28,<1"]
+
+[project.urls]
+Homepage = "https://www.api2convert.com"
+Documentation = "https://www.api2convert.com/documentation"
+Source = "https://github.com/QaamGo/api2convert-python"
+Issues = "https://github.com/QaamGo/api2convert-python/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=6", "respx>=0.22", "mypy>=1.13", "ruff>=0.14", "build>=1.2"]
+
+[tool.hatch.version]
+source = "vcs"
+# A real release tag (e.g. v10.2.0) is the source of truth. The fallback only
+# applies when no VCS metadata is present (e.g. a fresh clone with no tags), so
+# `pip install -e .` and offline builds never fail to resolve a version.
+raw-options = { fallback_version = "10.2.0" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/api2convert"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "docs", "openapi", "examples", "README.md", "LICENSE", "AGENTS.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# PTH (prefer pathlib) is intentionally omitted: the download path handling is a
+# deliberate, security-sensitive port of PHP's basename/realpath traversal defense
+# where os.path string semantics matter and pathlib would change platform behavior.
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+mypy_path = "src"
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+filterwarnings = ["error"]
+markers = ["live: hits the real API; requires API2CONVERT_API_KEY"]
+
+[tool.coverage.run]
+source = ["api2convert"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

@@ -1,0 +1,49 @@
+name: Release
+
+# Runs when a version tag is pushed (e.g. `git push origin v10.2.0`).
+# The wheel version is derived from the tag by hatch-vcs — there is no version
+# constant to keep in sync. Publishing uses PyPI Trusted Publishing (OIDC): no
+# long-lived token is stored anywhere.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so hatch-vcs derives the release version
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e '.[dev]'
+      - name: pytest (unit only)
+        run: pytest -m "not live"
+      - name: Build sdist + wheel
+        run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi # a protected GitHub Environment
+    permissions:
+      id-token: write # the OIDC token for Trusted Publishing — no PyPI secret
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
