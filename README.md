@@ -1,8 +1,8 @@
 # API2Convert Python SDK
 
 [![CI](https://github.com/QaamGo/api2convert-python/actions/workflows/ci.yml/badge.svg)](https://github.com/QaamGo/api2convert-python/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/api2convert)](https://pypi.org/project/api2convert/)
-![Python](https://img.shields.io/pypi/pyversions/api2convert)
+[![PyPI version](https://img.shields.io/pypi/v/api2convert?cacheSeconds=3600)](https://pypi.org/project/api2convert/)
+![Python](https://img.shields.io/pypi/pyversions/api2convert?cacheSeconds=3600)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 The official Python client for the [API2Convert](https://www.api2convert.com) file-conversion API.
