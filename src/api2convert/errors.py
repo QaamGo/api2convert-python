@@ -25,6 +25,14 @@ class Api2ConvertError(Exception):
     """
 
 
+class ConfigurationError(Api2ConvertError, ValueError):
+    """The client was configured with an invalid value, e.g. a missing API key.
+
+    Raised before any request is sent. Also a :class:`ValueError`, so existing
+    ``except ValueError`` handlers around client construction keep working.
+    """
+
+
 class ApiError(Api2ConvertError):
     """An HTTP error response (status >= 400).
 

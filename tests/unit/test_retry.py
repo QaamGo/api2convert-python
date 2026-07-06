@@ -185,3 +185,35 @@ def test_retry_after_zero_falls_back_to_backoff(
 
     assert len(api.slept) == 1
     assert api.slept[0] >= 0.5  # jittered exponential backoff, never a 0-delay retry storm
+
+
+# --- malformed / unsupported URL: fail fast inside the SDK hierarchy, never retry ------
+
+
+def test_invalid_url_raises_network_error_and_is_not_retried(
+    make_transport: Callable[..., Transport], api: MockAPI
+) -> None:
+    transport = make_transport(max_retries=3)
+
+    # A NUL byte makes httpx.build_request raise httpx.InvalidURL — which previously
+    # escaped the SDK hierarchy raw. It must now surface as a NetworkError, unretried.
+    with pytest.raises(NetworkError):
+        transport.send(lambda: transport.build_request("GET", "http://\x00/x"))
+
+    assert len(api.requests) == 0  # never reached the transport, never retried
+
+
+def test_unsupported_protocol_raises_network_error_and_is_not_retried(
+    make_transport: Callable[..., Transport], api: MockAPI
+) -> None:
+    api.add_error(httpx.UnsupportedProtocol("unsupported scheme"))
+    api.add_error(httpx.UnsupportedProtocol("unsupported scheme"))
+    transport = make_transport(max_retries=3)
+
+    # UnsupportedProtocol is an httpx.TransportError subclass; it must not be retried
+    # (a bad scheme will never become good) and must surface as a NetworkError.
+    with pytest.raises(NetworkError):
+        transport.send(lambda: _get(transport))
+
+    assert len(api.requests) == 1  # sent once, not retried
+    assert api.slept == []

@@ -13,6 +13,7 @@ import os
 import time
 from collections.abc import Mapping
 from typing import IO, TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from ._config import MAX_POLL_TIMEOUT, MIN_POLL_INTERVAL
 from .errors import ConversionFailedError, ConversionTimeoutError
@@ -21,6 +22,15 @@ from .models import InputFile, Job, OutputFile, Preset
 if TYPE_CHECKING:
     from ._transport import Transport
     from ._upload import FileUploader
+
+
+def _seg(value: str) -> str:
+    """Percent-encode a value for safe use as a single URL path segment.
+
+    ``safe=""`` encodes ``/`` too, so a caller-supplied id (job/preset id, stats
+    date/filter) can never inject extra path segments or a traversal into the URL.
+    """
+    return quote(value, safe="")
 
 
 class JobsResource:
@@ -46,7 +56,7 @@ class JobsResource:
         return Job.from_dict(self._transport.request("POST", "/jobs", payload, headers=headers))
 
     def get(self, job_id: str) -> Job:
-        return Job.from_dict(self._transport.request("GET", f"/jobs/{job_id}"))
+        return Job.from_dict(self._transport.request("GET", f"/jobs/{_seg(job_id)}"))
 
     def list(self, status: str | None = None, page: int = 1) -> builtins.list[Job]:
         """List the current key's jobs (paginated, 50 per page)."""
@@ -57,7 +67,7 @@ class JobsResource:
         return [Job.from_dict(row) for row in rows if isinstance(row, dict)]
 
     def update(self, job_id: str, payload: Mapping[str, Any]) -> Job:
-        return Job.from_dict(self._transport.request("PATCH", f"/jobs/{job_id}", payload))
+        return Job.from_dict(self._transport.request("PATCH", f"/jobs/{_seg(job_id)}", payload))
 
     def start(self, job_id: str) -> Job:
         """Start processing a staged job (``process => true``)."""
@@ -65,7 +75,7 @@ class JobsResource:
 
     def cancel(self, job_id: str) -> None:
         """Cancel a job (whether staged or processing)."""
-        self._transport.request("DELETE", f"/jobs/{job_id}")
+        self._transport.request("DELETE", f"/jobs/{_seg(job_id)}")
 
     def add_input(self, job_id: str, descriptor: Mapping[str, Any]) -> InputFile:
         """Attach an input by descriptor, e.g. a remote URL.
@@ -73,7 +83,7 @@ class JobsResource:
         ``add_input(job_id, {"type": "remote", "source": "https://..."})``.
         """
         return InputFile.from_dict(
-            self._transport.request("POST", f"/jobs/{job_id}/input", descriptor)
+            self._transport.request("POST", f"/jobs/{_seg(job_id)}/input", descriptor)
         )
 
     def upload(
@@ -123,7 +133,7 @@ class JobsResource:
 
     def outputs(self, job_id: str) -> builtins.list[OutputFile]:
         """Outputs produced by the job (use :meth:`get` or :meth:`wait` first)."""
-        rows = self._transport.request("GET", f"/jobs/{job_id}/output")
+        rows = self._transport.request("GET", f"/jobs/{_seg(job_id)}/output")
         return [OutputFile.from_dict(row) for row in rows if isinstance(row, dict)]
 
 
@@ -187,13 +197,15 @@ class PresetsResource:
         return Preset.from_dict(self._transport.request("POST", "/presets", payload))
 
     def get(self, preset_id: str) -> Preset:
-        return Preset.from_dict(self._transport.request("GET", f"/presets/{preset_id}"))
+        return Preset.from_dict(self._transport.request("GET", f"/presets/{_seg(preset_id)}"))
 
     def update(self, preset_id: str, payload: Mapping[str, Any]) -> Preset:
-        return Preset.from_dict(self._transport.request("PATCH", f"/presets/{preset_id}", payload))
+        return Preset.from_dict(
+            self._transport.request("PATCH", f"/presets/{_seg(preset_id)}", payload)
+        )
 
     def delete(self, preset_id: str) -> None:
-        self._transport.request("DELETE", f"/presets/{preset_id}")
+        self._transport.request("DELETE", f"/presets/{_seg(preset_id)}")
 
 
 class StatsResource:
@@ -207,15 +219,15 @@ class StatsResource:
 
     def day(self, day: str, filter: str = "all") -> Any:
         """``day`` format ``yyyy-mm-dd``."""
-        return self._transport.request("GET", f"/stats/day/{day}/{filter}")
+        return self._transport.request("GET", f"/stats/day/{_seg(day)}/{_seg(filter)}")
 
     def month(self, month: str, filter: str = "all") -> Any:
         """``month`` format ``yyyy-mm``."""
-        return self._transport.request("GET", f"/stats/month/{month}/{filter}")
+        return self._transport.request("GET", f"/stats/month/{_seg(month)}/{_seg(filter)}")
 
     def year(self, year: str, filter: str = "all") -> Any:
         """``year`` format ``yyyy``."""
-        return self._transport.request("GET", f"/stats/year/{year}/{filter}")
+        return self._transport.request("GET", f"/stats/year/{_seg(year)}/{_seg(filter)}")
 
 
 class ContractsResource:

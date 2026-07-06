@@ -17,6 +17,7 @@ import httpx
 from ._config import Config
 from ._transport import Transport
 from ._upload import FileUploader
+from .errors import ConfigurationError
 from .models import Job, OutputFile
 from .resources import (
     ContractsResource,
@@ -61,7 +62,7 @@ class Api2Convert:
         """
         api_key = api_key or os.environ.get("API2CONVERT_API_KEY", "")
         if not api_key:
-            raise ValueError(
+            raise ConfigurationError(
                 "No API key provided. Pass it to the constructor or set the "
                 "API2CONVERT_API_KEY environment variable."
             )

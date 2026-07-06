@@ -6,7 +6,9 @@ neither busy-loop the poll (interval floor) nor poll unbounded (timeout ceiling)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from .errors import ConfigurationError
 
 #: Default API base URL — includes the ``/v2`` path segment, no trailing slash.
 DEFAULT_BASE_URL = "https://api.api2convert.com/v2"
@@ -26,7 +28,9 @@ class Config:
     the client uses) so a caller value can never busy-loop or poll unbounded.
     """
 
-    api_key: str
+    #: The account API key. Kept out of ``repr`` so it can never be leaked to a
+    #: log, traceback or error report that prints the config.
+    api_key: str = field(repr=False)
     base_url: str = DEFAULT_BASE_URL
     #: Per-request network timeout (connect and read), in seconds.
     timeout: int = 30
@@ -51,6 +55,10 @@ class Config:
         poll_max_interval: float | None = None,
         poll_timeout: int | None = None,
     ) -> Config:
+        if not api_key:
+            # Validate here too (not only in the high-level client) so the
+            # low-level path can never build a Config with an empty key.
+            raise ConfigurationError("No API key provided.")
         poll_interval_value = max(
             MIN_POLL_INTERVAL, float(poll_interval if poll_interval is not None else 1.0)
         )

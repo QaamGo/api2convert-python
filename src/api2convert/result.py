@@ -7,6 +7,7 @@ at conversion time and send it automatically on download.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import posixpath
 from pathlib import Path
@@ -63,12 +64,21 @@ class FileDownload:
         except OSError as exc:
             raise Api2ConvertError(f"Could not open file for writing: {target}") from exc
 
-        with (
-            handle,
-            self._transport.stream(self._output.uri, self._headers(download_password)) as source,
-        ):
-            for chunk in source.iter_bytes(self._CHUNK_SIZE):
-                handle.write(chunk)
+        try:
+            with (
+                handle,
+                self._transport.stream(
+                    self._output.uri, self._headers(download_password)
+                ) as source,
+            ):
+                for chunk in source.iter_bytes(self._CHUNK_SIZE):
+                    handle.write(chunk)
+        except BaseException:
+            # A mid-stream failure (network drop, disk full, interrupt) must not leave
+            # a truncated file the caller could mistake for a complete download.
+            with contextlib.suppress(OSError):
+                os.unlink(target)
+            raise
 
         return Path(target)
 

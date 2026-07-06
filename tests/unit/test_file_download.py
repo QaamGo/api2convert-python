@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 
 from api2convert import Api2Convert, Api2ConvertError, OutputFile
@@ -74,3 +75,42 @@ def test_save_raises_when_directory_cannot_be_created(
         client.download(OutputFile(id="o", uri=URI)).save(blocker / "sub" / "out.pdf")
 
     assert len(api.requests) == 0  # fails before any download request
+
+
+def test_malformed_download_uri_raises_network_error_before_any_request(
+    make_client: Callable[..., Api2Convert], api: MockAPI
+) -> None:
+    # output.uri comes from API JSON; a syntactically malformed value (here a NUL
+    # byte) makes httpx.URL() reject it. It must surface as the SDK's NetworkError
+    # before any request is sent, not a raw httpx.InvalidURL escaping the hierarchy.
+    client = make_client()
+
+    with pytest.raises(Api2ConvertError, match="Invalid download URL"):
+        client.download(OutputFile(id="o", uri="https://dl.example.com/\x00bad")).contents()
+
+    assert len(api.requests) == 0  # rejected before send
+
+
+class _ExplodingStream(httpx.SyncByteStream):
+    """A body that yields one chunk, then fails — simulating a dropped connection."""
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield b"PARTIAL-BYTES"
+        raise httpx.ReadError("connection dropped mid-stream")
+
+
+def test_mid_stream_error_leaves_no_partial_file(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=_ExplodingStream())
+
+    target = tmp_path / "out.bin"
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    with (
+        Api2Convert("k", http_client=http_client) as client,
+        pytest.raises(httpx.ReadError),
+    ):
+        client.download(OutputFile(id="o", uri=URI)).save(target)
+
+    # The truncated download must be removed, not left to masquerade as complete.
+    assert not target.exists()

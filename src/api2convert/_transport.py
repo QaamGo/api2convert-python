@@ -145,7 +145,12 @@ class Transport:
         """
         attempt = 0
         while True:
-            request = build()
+            try:
+                request = build()
+            except (httpx.InvalidURL, httpx.UnsupportedProtocol) as exc:
+                # A malformed or unsupported URL is a permanent client error, not a
+                # transient one: fail fast inside the SDK hierarchy, never retry.
+                raise NetworkError(f"Invalid request URL: {exc}") from exc
             request.headers["Accept"] = "application/json"
             request.headers["User-Agent"] = _user_agent()
             idempotent = self._is_idempotent(request)
@@ -154,6 +159,11 @@ class Transport:
                 response = self._client.send(
                     request, stream=stream, follow_redirects=follow_redirects
                 )
+            except httpx.UnsupportedProtocol as exc:
+                # UnsupportedProtocol is an httpx.TransportError subclass, so it must be
+                # caught before the retry branch below — retrying an unsupported scheme
+                # would only stall and then fail anyway.
+                raise NetworkError(f"Invalid request URL: {exc}") from exc
             except httpx.TransportError as exc:
                 # A non-idempotent request must not be replayed on a network error:
                 # the backend may have already acted, so a blind retry could create a
@@ -241,20 +251,78 @@ class Transport:
 
         Used for output downloads — these URLs need no API key. Retry wraps only
         opening the stream + status line, never mid-stream consumption.
+
+        Storage/CDN download URLs legitimately redirect, so this path follows
+        redirects. But a password-protected download sends the secret in the
+        ``X-Oc-Download-Password`` header, and httpx forwards custom headers across
+        a cross-origin redirect (it strips only ``Authorization``). So redirects are
+        followed manually here: any ``X-Oc-*`` header is dropped the instant a hop
+        crosses to a different origin (scheme/host/port), so the download password
+        can never leak to another host.
         """
-        request_headers = dict(headers) if headers else {}
-
-        def build() -> httpx.Request:
-            return self.build_request("GET", uri, headers=request_headers)
-
-        # Downloads carry no account key, and self-contained storage URLs legitimately
-        # redirect, so this is the one path that opts in to following redirects.
-        response = self.send(build, stream=True, replayable=True, follow_redirects=True)
+        response = self._open_download(uri, dict(headers) if headers else {})
         try:
             self.ensure_successful(response)
             yield response
         finally:
             response.close()
+
+    #: A redirect chain longer than this is treated as a loop and refused.
+    MAX_REDIRECTS = 10
+
+    def _open_download(self, uri: str, headers: dict[str, str]) -> httpx.Response:
+        """Open ``uri`` for streaming, following redirects with secret-safe hops."""
+        # Parse the API-supplied URI up front so a syntactically malformed value
+        # surfaces as a (non-retryable) NetworkError instead of a raw
+        # httpx.InvalidURL escaping the SDK hierarchy — consistent with send()'s
+        # guard on the request path. httpx.URL() parses here, before any send().
+        current_url = self._parse_download_url(uri)
+        current_headers = dict(headers)
+        for _ in range(self.MAX_REDIRECTS + 1):
+            target = str(current_url)
+            hop_headers = dict(current_headers)
+
+            # Default args snapshot this hop's URL/headers (avoids a late-binding closure).
+            def build(url: str = target, hdrs: dict[str, str] = hop_headers) -> httpx.Request:
+                return self.build_request("GET", url, headers=hdrs)
+
+            # Follow manually (follow_redirects=False) so we control what crosses origins.
+            response = self.send(build, stream=True, replayable=True, follow_redirects=False)
+            location = response.headers.get("Location")
+            if response.is_redirect and location:
+                # Resolving the Location header can also fail on a malformed value;
+                # map it to NetworkError so a hostile redirect can't leak raw httpx.
+                try:
+                    next_url = current_url.join(location)
+                except (httpx.InvalidURL, httpx.UnsupportedProtocol) as exc:
+                    response.close()
+                    raise NetworkError(f"Invalid redirect URL: {exc}") from exc
+                response.close()
+                if not self._same_origin(current_url, next_url):
+                    # Never forward a secret header to a different origin.
+                    current_headers = {
+                        name: value
+                        for name, value in current_headers.items()
+                        if not name.lower().startswith("x-oc-")
+                    }
+                current_url = next_url
+                continue
+            return response
+        raise NetworkError(
+            f"Exceeded the maximum of {self.MAX_REDIRECTS} redirects downloading {uri}."
+        )
+
+    @staticmethod
+    def _parse_download_url(uri: str) -> httpx.URL:
+        """Parse a download URI, mapping a malformed value to :class:`NetworkError`."""
+        try:
+            return httpx.URL(uri)
+        except (httpx.InvalidURL, httpx.UnsupportedProtocol) as exc:
+            raise NetworkError(f"Invalid download URL: {exc}") from exc
+
+    @staticmethod
+    def _same_origin(a: httpx.URL, b: httpx.URL) -> bool:
+        return (a.scheme, a.host, a.port) == (b.scheme, b.host, b.port)
 
     def _url(self, path: str, query: Mapping[str, str] | None = None) -> str:
         url = self._config.base_url + "/" + path.lstrip("/")

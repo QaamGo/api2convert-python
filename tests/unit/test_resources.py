@@ -79,6 +79,31 @@ def test_jobs_outputs(make_client: Callable[..., Api2Convert], api: MockAPI) -> 
     assert str(api.request_at(0).url).endswith("/jobs/j/output")
 
 
+def test_dynamic_path_segments_are_percent_encoded(
+    make_client: Callable[..., Api2Convert], api: MockAPI
+) -> None:
+    api.add_json(200, {"id": "j", "status": {"code": "completed"}})
+
+    # A caller-supplied id containing '/' and a space must not inject extra path
+    # segments — it is percent-encoded into a single segment.
+    make_client().jobs.get("a/b c")
+
+    url = str(api.request_at(0).url)
+    assert "/jobs/a%2Fb%20c" in url
+    assert "/jobs/a/b" not in url
+
+
+def test_stats_segments_are_percent_encoded(
+    make_client: Callable[..., Api2Convert], api: MockAPI
+) -> None:
+    api.add_json(200, {"ok": True})
+
+    make_client().stats.day("2026-07-06", filter="a/../b")
+
+    url = str(api.request_at(0).url)
+    assert "/stats/day/2026-07-06/a%2F..%2Fb" in url
+
+
 def test_conversions_list_filters(make_client: Callable[..., Api2Convert], api: MockAPI) -> None:
     api.add_json(200, [{"target": "png", "category": "image", "options": {}}])
     rows = make_client().conversions.list(category="image", target="png")

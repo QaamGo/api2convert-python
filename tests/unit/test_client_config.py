@@ -8,7 +8,8 @@ from io import BytesIO
 import httpx
 import pytest
 
-from api2convert import Api2Convert
+from api2convert import Api2Convert, Api2ConvertError, ConfigurationError
+from api2convert._config import Config
 
 from ..conftest import MockAPI
 
@@ -42,6 +43,23 @@ def test_explicit_key_wins_over_env(api: MockAPI, monkeypatch: pytest.MonkeyPatc
 def test_bring_your_own_client_must_be_httpx_client() -> None:
     with pytest.raises(TypeError, match=r"httpx\.Client"):
         Api2Convert("k", http_client="not-a-client")  # type: ignore[arg-type]
+
+
+def test_empty_api_key_raises_typed_configuration_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("API2CONVERT_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError):
+        Api2Convert("")
+
+    # It stays catchable as an SDK error and, for back-compat, as a ValueError.
+    assert issubclass(ConfigurationError, Api2ConvertError)
+    assert issubclass(ConfigurationError, ValueError)
+
+
+def test_config_create_rejects_an_empty_key() -> None:
+    # The low-level path must also refuse to build an empty-key config.
+    with pytest.raises(ConfigurationError):
+        Config.create("")
 
 
 def test_default_client_is_created_and_closed() -> None:
