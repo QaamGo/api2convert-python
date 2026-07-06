@@ -1,0 +1,26 @@
+name: live-conformance
+
+# Runs the live conformance suite against the real API2Convert API whenever a new
+# version is tagged (or on demand). The API key is an encrypted repository secret,
+# never exposed to fork pull requests.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e '.[dev]'
+      - name: Live conformance
+        run: pytest tests/live -q
+        env:
+          API2CONVERT_API_KEY: ${{ secrets.API2CONVERT_API_KEY }}
