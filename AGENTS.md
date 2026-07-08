@@ -47,8 +47,8 @@ junior-friendly surface — one-call `convert()` — and use AI to keep it curre
    the **major** version.
 5. **Lint + type-check + test (the guardrail):**
    ```bash
-   ruff check src tests && ruff format --check src tests   # style
-   mypy                                                     # PHPStan-level-8 analog (strict)
+   ruff check src tests examples && ruff format --check src tests examples   # style
+   mypy src examples                                                         # PHPStan-level-8 analog (strict)
    pytest -m "not live"                                     # golden tests
    ```
    Add or update a golden test in `tests/unit/` for any new behavior. Keep `tests/live/` runnable.

@@ -213,8 +213,8 @@ Bring your own configured `httpx.Client` by passing `http_client=...`.
 python -m venv .venv && . .venv/bin/activate
 pip install -e '.[dev]'
 
-ruff check src tests && ruff format --check src tests   # lint + format
-mypy                                                     # static typing (strict)
+ruff check src tests examples && ruff format --check src tests examples   # lint + format
+mypy src examples                                                         # static typing (strict)
 pytest -m "not live"                                     # offline unit tests
 ```
 
