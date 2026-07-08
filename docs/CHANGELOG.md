@@ -3,6 +3,18 @@
 All notable changes to this package are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [10.2.1] - 2026-07-08
+
+Security hardening for downloads, config and URL handling (parity with the PHP SDK 10.2.1).
+
+- Secret-bearing requests no longer follow redirects automatically, so the `X-Oc-Api-Key`,
+  `X-Oc-Token` and `X-Oc-Download-Password` headers can never leak across a cross-host redirect.
+  Password-less downloads are followed manually with the `X-Oc-*` headers dropped on cross-origin hops.
+- Un-followed redirects and malformed URLs surface as a typed network error; partial download files
+  are cleaned up on error.
+- Dynamic URL path segments are percent-encoded, and an empty API key raises a typed configuration
+  error.
+
 ## [10.2.0] - 2026-07-02
 
 First public release of the official, hand-written Python SDK (`api2convert`), targeting Python 3.10+.

@@ -38,7 +38,7 @@ source = "vcs"
 # A real release tag (e.g. v10.2.0) is the source of truth. The fallback only
 # applies when no VCS metadata is present (e.g. a fresh clone with no tags), so
 # `pip install -e .` and offline builds never fail to resolve a version.
-raw-options = { fallback_version = "10.2.0" }
+raw-options = { fallback_version = "10.2.1" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/api2convert"]
