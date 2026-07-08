@@ -224,20 +224,41 @@ Live conformance tests run against the real API when `API2CONVERT_API_KEY` is se
 API2CONVERT_API_KEY=... pytest -m live
 ```
 
-The [live conformance suite](tests/live/test_conformance.py) doubles as an executable, end-to-end
-tour of the SDK — each test is a self-contained usage example:
+## Examples
 
-1. **Convert a remote URL** — the one-call happy path.
-2. **Upload and convert a local file** — the multipart upload path.
-3. **Convert with options** — apply target-specific conversion options.
-4. **Discover the catalog** — list conversions and option schemas.
-5. **Drive the job lifecycle by hand** — create → add input → start → wait → inspect.
-6. **Handle a validation error** — an unknown target is a typed error.
-7. **Handle an authentication error** — a bad key is typed and never leaked.
+Runnable, self-contained programs live in [`examples/`](examples/) — one per documented guide.
+Each reads the key from `API2CONVERT_API_KEY` (and honours `API2CONVERT_BASE_URL`). Run any of
+them with, e.g., `API2CONVERT_API_KEY=your-key python examples/quickstart.py`.
+
+| Example | Guide |
+|---|---|
+| [`quickstart.py`](examples/quickstart.py) | Convert a remote file, look the job up, download the output |
+| [`convert_files.py`](examples/convert_files.py) | Browse the conversions catalog, then convert |
+| [`uploading_files.py`](examples/uploading_files.py) | One-call upload + convert of a local file |
+| [`job_lifecycle.py`](examples/job_lifecycle.py) | Drive create → add input → start → wait → outputs by hand |
+| [`add_watermark.py`](examples/add_watermark.py) | Stamp a PNG onto a PDF (multi-input job) |
+| [`create_thumbnails.py`](examples/create_thumbnails.py) | Render a document page preview |
+| [`compress_files.py`](examples/compress_files.py) | Shrink a file with the compress operation |
+| [`create_archives.py`](examples/create_archives.py) | Bundle several files into a ZIP |
+| [`create_hashes.py`](examples/create_hashes.py) | Compute a SHA-256 checksum |
+| [`extract_assets.py`](examples/extract_assets.py) | Extract embedded assets from a document |
+| [`file_analysis.py`](examples/file_analysis.py) | Extract file metadata as JSON |
+| [`compare_files.py`](examples/compare_files.py) | Diff two images |
+| [`capture_website.py`](examples/capture_website.py) | Screenshot a URL to PNG |
+| [`audio_operations.py`](examples/audio_operations.py) | Re-encode audio (WAV → AAC) |
+| [`image_operations.py`](examples/image_operations.py) | Resize an image |
+| [`webhooks.py`](examples/webhooks.py) | Start a conversion asynchronously with a callback |
+| [`presets.py`](examples/presets.py) | List saved conversion presets |
+| [`statistics.py`](examples/statistics.py) | Read API usage for a month |
+| [`rate_limits.py`](examples/rate_limits.py) | Inspect the account's contracts |
+| [`authentication.py`](examples/authentication.py) | Verify the API key with an authenticated call |
+
+The [live conformance suite](tests/live/test_conformance.py) mirrors these examples 1:1 — each test
+performs the same operation and asserts success — plus two negative tests (an unknown target is a
+typed `ValidationError`; a bad key is a typed `AuthenticationError` that never leaks the key).
 
 It runs automatically against the real API on every release tag (see
 `.github/workflows/live-conformance.yml`), so a published version is always verified end to end.
-Runnable single-purpose examples live in [`examples/`](examples/).
 
 This SDK is hand-written and kept in sync with the API by an AI agent — see [`AGENTS.md`](AGENTS.md)
 and [`docs/SDK_CONTRACT.md`](docs/SDK_CONTRACT.md). Notable changes are recorded in
