@@ -3,7 +3,7 @@
 This step is intentionally hand-written — it is NOT described by the OpenAPI
 spec. It posts a ``multipart/form-data`` body (field ``file``) to
 ``{job.server}/upload-file/{job.id}`` and authenticates with the per-job
-``X-Oc-Token`` header — never the account API key. The body is streamed, so
+``X-Api2convert-Token`` header — never the account API key. The body is streamed, so
 large files are not read into memory. Internal.
 """
 
@@ -47,7 +47,7 @@ class FileUploader:
             if seekable:
                 stream.seek(0)
             return self._transport.build_request(
-                "POST", url, headers={"X-Oc-Token": token}, files={"file": (resolved_name, stream)}
+                "POST", url, headers={"X-Api2convert-Token": token}, files={"file": (resolved_name, stream)}
             )
 
         try:

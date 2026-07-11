@@ -17,20 +17,20 @@ Two layers make up an SDK:
 
 ## Protocol facts (the API the SDK speaks)
 
-- Base URL `https://api.api2convert.com/v2`. Auth header `X-Oc-Api-Key: <key>` on account requests.
+- Base URL `https://api.api2convert.com/v2`. Auth header `X-Api2convert-Api-Key: <key>` on account requests (canonical `X-Api2convert-*` names; the legacy `X-Oc-*` headers remain accepted by the API as permanent aliases).
 - **Create job** `POST /jobs` `{ conversion:[{category?,target,options?}], input?:[…], process:bool,
   callback?, notify_status?, download_passwords?:[…] }` → response includes `id`, per-job `token`,
   per-job upload `server`, and `status.code`. `download_passwords` protects every output of the job;
   any password in the list then unlocks its downloads. The API never returns the plaintext back.
 - **Upload** (not in the spec): `POST {server}/upload-file/{job_id}`, `multipart/form-data` field
-  `file`, authenticated with the per-job **`X-Oc-Token`** header — never the account key.
+  `file`, authenticated with the per-job **`X-Api2convert-Token`** header — never the account key.
 - **Add remote input**: `POST /jobs/{id}/input` `{ type:'remote', source:'https://…' }`.
 - **Start**: `PATCH /jobs/{id}` `{ process:true }`.
 - **Poll**: `GET /jobs/{id}` → terminal when `status.code ∈ {completed, failed, canceled}`
   (`failed`/`canceled` are unsuccessful terminals; non-terminal: `created`, `incomplete`,
   `downloading`, `queued`, `processing`, and any unknown code). Poll with backoff; clamp the
   interval to a floor (never busy-loop) and the total wait to a ceiling (never poll unbounded).
-- **Download**: `GET output.uri` — self-contained, no auth; `X-Oc-Download-Password` header if set.
+- **Download**: `GET output.uri` — self-contained, no auth; `X-Api2convert-Download-Password` header if set.
 - **Discover options**: `GET /conversions?category=&target=`.
 - **Errors**: HTTP body `{ "message": "…" }`; job-level `errors[]` / `warnings[]` of
   `{ source, id_source, code, message, details }`.
@@ -64,7 +64,7 @@ Two layers make up an SDK:
 - `contents(downloadPassword?) → binary`, `url() → string`, `output()`, `outputs()`.
 - **Download-password transparency**: a password supplied at conversion time (`convert(...,
   downloadPassword)`) or to `download(output, downloadPassword)` is remembered and sent as the
-  `X-Oc-Download-Password` header on every download from that result/handle — callers do not
+  `X-Api2convert-Download-Password` header on every download from that result/handle — callers do not
   re-supply it. An explicit `downloadPassword` argument to `save()` / `contents()` overrides the
   remembered one for that call.
 
@@ -83,7 +83,7 @@ Two layers make up an SDK:
 - `parse(rawBody) → WebhookEvent` — deserialize without verifying (pre-signed-webhooks).
 
 ## Cross-cutting semantics
-- **Auth**: account key as `X-Oc-Api-Key`; uploads use the per-job token.
+- **Auth**: account key as `X-Api2convert-Api-Key`; uploads use the per-job token.
 - **Retries**: automatically retry with capped, jittered exponential backoff, honoring `Retry-After`
   (delay-seconds or HTTP-date form, clamped to a ceiling). `429` is retried for every method; `5xx`
   and network errors are retried only for idempotent methods (`GET`/`HEAD`/`PUT`/`DELETE`/`OPTIONS`/

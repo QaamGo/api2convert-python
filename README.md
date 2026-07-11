@@ -77,7 +77,7 @@ result.save("statement.pdf")    # the password is applied for you
 ```
 
 The download URL still needs the password from anywhere else (a browser, curl, another process),
-via the `X-Oc-Download-Password` header. When you already hold an `OutputFile` — e.g. from the Jobs
+via the `X-Api2convert-Download-Password` header. When you already hold an `OutputFile` — e.g. from the Jobs
 API — hand the password to `download()`:
 
 ```python

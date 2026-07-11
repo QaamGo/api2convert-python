@@ -113,7 +113,7 @@ class Transport:
         headers: Mapping[str, str] | None = None,
     ) -> Any:
         """Perform an authenticated JSON request and return the decoded body."""
-        request_headers: dict[str, str] = {"X-Oc-Api-Key": self._config.api_key}
+        request_headers: dict[str, str] = {"X-Api2convert-Api-Key": self._config.api_key}
         if headers:
             request_headers.update(headers)
         content: bytes | None = None
@@ -201,7 +201,7 @@ class Transport:
         """Raise a typed exception for error responses; otherwise decode JSON."""
         self.ensure_successful(response)
 
-        # Every API request rides the no-follow path (secrets travel in X-Oc-* headers), so a 3xx
+        # Every API request rides the no-follow path (secrets travel in X-Api2convert-* headers), so a 3xx
         # passes ensure_successful (status < 400) but was deliberately not followed; decoding its
         # body would yield an empty model. Surface it as a typed error instead.
         if 300 <= response.status_code < 400:
@@ -269,9 +269,9 @@ class Transport:
 
         Storage/CDN download URLs legitimately redirect, so this path follows
         redirects. But a password-protected download sends the secret in the
-        ``X-Oc-Download-Password`` header, and httpx forwards custom headers across
+        ``X-Api2convert-Download-Password`` header, and httpx forwards custom headers across
         a cross-origin redirect (it strips only ``Authorization``). So redirects are
-        followed manually here: any ``X-Oc-*`` header is dropped the instant a hop
+        followed manually here: any ``X-Api2convert-*`` header is dropped the instant a hop
         crosses to a different origin (scheme/host/port), so the download password
         can never leak to another host.
         """
@@ -318,7 +318,7 @@ class Transport:
                     current_headers = {
                         name: value
                         for name, value in current_headers.items()
-                        if not name.lower().startswith("x-oc-")
+                        if not name.lower().startswith("x-api2convert-")
                     }
                 current_url = next_url
                 continue

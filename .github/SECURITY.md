@@ -14,7 +14,7 @@ avoid disclosing details publicly until a fix has been released.
 The library handles two secrets on the caller's behalf — keep both out of source
 control and configure them via environment variables or a secret manager:
 
-- the **account API key** (`X-Oc-Api-Key`) — read from configuration/environment
+- the **account API key** (`X-Api2convert-Api-Key`) — read from configuration/environment
   (`API2CONVERT_API_KEY`) and sent only over TLS to the API host, never in a URL
   query string;
 - the **webhook signing secret** — used locally to verify callback signatures

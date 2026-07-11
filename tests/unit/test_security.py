@@ -26,7 +26,7 @@ def test_api_key_is_not_followed_across_a_redirect_on_the_authenticated_path() -
             # An API host that (or an intermediary that) 302s to another host must not
             # cause the account key to be forwarded there.
             return httpx.Response(302, headers={"Location": "https://evil.example.net/steal"})
-        return httpx.Response(200, json={"grabbed": request.headers.get("X-Oc-Api-Key")})
+        return httpx.Response(200, json={"grabbed": request.headers.get("X-Api2convert-Api-Key")})
 
     # An authenticated 3xx is surfaced as a typed error, not silently swallowed.
     with pytest.raises(NetworkError):
@@ -53,7 +53,7 @@ def test_download_password_is_not_resent_to_a_different_host_on_redirect() -> No
     seen: list[tuple[str, str | None]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen.append((request.url.host, request.headers.get("X-Oc-Download-Password")))
+        seen.append((request.url.host, request.headers.get("X-Api2convert-Download-Password")))
         if request.url.host == "dl.api2convert.com":
             # Storage layer 302s the (password-bearing) download to another host.
             return httpx.Response(302, headers={"Location": "https://storage.example.net/file"})
@@ -74,7 +74,7 @@ def test_download_password_survives_a_same_origin_redirect() -> None:
     passwords: list[str | None] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        passwords.append(request.headers.get("X-Oc-Download-Password"))
+        passwords.append(request.headers.get("X-Api2convert-Download-Password"))
         if request.url.path == "/result.bin":
             # Same host, different path — the secret may (and must) still be sent.
             return httpx.Response(302, headers={"Location": "/moved/result.bin"})

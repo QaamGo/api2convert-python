@@ -7,9 +7,9 @@ All notable changes to this package are documented here. This project adheres to
 
 Security hardening for downloads, config and URL handling (parity with the PHP SDK 10.2.1).
 
-- Secret-bearing requests no longer follow redirects automatically, so the `X-Oc-Api-Key`,
-  `X-Oc-Token` and `X-Oc-Download-Password` headers can never leak across a cross-host redirect.
-  Password-less downloads are followed manually with the `X-Oc-*` headers dropped on cross-origin hops.
+- Secret-bearing requests no longer follow redirects automatically, so the `X-Api2convert-Api-Key`,
+  `X-Api2convert-Token` and `X-Api2convert-Download-Password` headers can never leak across a cross-host redirect.
+  Password-less downloads are followed manually with the `X-Api2convert-*` headers dropped on cross-origin hops.
 - Un-followed redirects and malformed URLs surface as a typed network error; partial download files
   are cleaned up on error.
 - Dynamic URL path segments are percent-encoded, and an empty API key raises a typed configuration

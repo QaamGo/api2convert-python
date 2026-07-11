@@ -42,7 +42,7 @@ def test_remote_url_creates_started_job_polls_and_downloads(
     create = api.request_at(0)
     assert create.method == "POST"
     assert str(create.url).endswith("/jobs")
-    assert create.headers["X-Oc-Api-Key"] == "test-key"
+    assert create.headers["X-Api2convert-Api-Key"] == "test-key"
     body = api.json_at(0)
     assert body["process"] is True
     assert body["conversion"][0]["target"] == "png"
@@ -94,8 +94,8 @@ def test_local_file_stages_uploads_then_starts(
     upload = api.request_at(1)
     assert upload.method == "POST"
     assert str(upload.url) == "https://www2.api2convert.com/v2/upload-file/job-9"
-    assert upload.headers["X-Oc-Token"] == "tok-abc"
-    assert "x-oc-api-key" not in upload.headers  # the account key must NOT leak to the upload
+    assert upload.headers["X-Api2convert-Token"] == "tok-abc"
+    assert "x-api2convert-api-key" not in upload.headers  # the account key must NOT leak to the upload
     assert "multipart/form-data" in upload.headers["content-type"]
     assert b'name="file"' in api.body_at(1)
 
@@ -165,7 +165,7 @@ def test_download_password_set_and_sent_transparently(
 
     assert api.json_at(0)["download_passwords"] == ["hunter2"]
     assert result.contents() == b"SECRET"
-    assert api.request_at(2).headers["X-Oc-Download-Password"] == "hunter2"
+    assert api.request_at(2).headers["X-Api2convert-Download-Password"] == "hunter2"
 
 
 def test_explicit_download_password_overrides_remembered(
@@ -182,7 +182,7 @@ def test_explicit_download_password_overrides_remembered(
     result = client.convert(REMOTE_URL, "pdf", download_password="hunter2")
     result.contents("override-pw")
 
-    assert api.request_at(2).headers["X-Oc-Download-Password"] == "override-pw"
+    assert api.request_at(2).headers["X-Api2convert-Download-Password"] == "override-pw"
 
 
 def test_download_helper_carries_password(
@@ -193,7 +193,7 @@ def test_download_helper_carries_password(
     client = make_client()
     output = OutputFile(id="o", uri=DOWNLOAD_URL)
     assert client.download(output, "hunter2").contents() == b"BYTES"
-    assert api.request_at(0).headers["X-Oc-Download-Password"] == "hunter2"
+    assert api.request_at(0).headers["X-Api2convert-Download-Password"] == "hunter2"
 
 
 def test_async_sets_download_password_on_create(
@@ -222,7 +222,7 @@ def test_without_download_password_sends_no_field_or_header(
     result.contents()
 
     assert "download_passwords" not in api.json_at(0)
-    assert "x-oc-download-password" not in api.request_at(2).headers
+    assert "x-api2convert-download-password" not in api.request_at(2).headers
 
 
 def test_options_discovery_queries_by_target_only(

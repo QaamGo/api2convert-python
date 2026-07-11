@@ -155,7 +155,7 @@ class FileDownload:
 
     def _headers(self, download_password: str | None) -> dict[str, str]:
         password = download_password if download_password is not None else self._download_password
-        return {"X-Oc-Download-Password": password} if password is not None else {}
+        return {"X-Api2convert-Download-Password": password} if password is not None else {}
 
 
 class ConversionResult:

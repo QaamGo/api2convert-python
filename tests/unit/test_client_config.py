@@ -26,7 +26,7 @@ def test_api_key_falls_back_to_env(api: MockAPI, monkeypatch: pytest.MonkeyPatch
     client = _client_with(api)  # no explicit key
     client.jobs.get("j")
 
-    assert api.request_at(0).headers["X-Oc-Api-Key"] == "env-key"
+    assert api.request_at(0).headers["X-Api2convert-Api-Key"] == "env-key"
 
 
 def test_explicit_key_wins_over_env(api: MockAPI, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,7 +37,7 @@ def test_explicit_key_wins_over_env(api: MockAPI, monkeypatch: pytest.MonkeyPatc
     client = Api2Convert("explicit-key", http_client=http_client)
     client.jobs.get("j")
 
-    assert api.request_at(0).headers["X-Oc-Api-Key"] == "explicit-key"
+    assert api.request_at(0).headers["X-Api2convert-Api-Key"] == "explicit-key"
 
 
 def test_bring_your_own_client_must_be_httpx_client() -> None:
