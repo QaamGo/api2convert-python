@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 
-from api2convert import Api2Convert, OutputFile
+from api2convert import Api2Convert, NetworkError, OutputFile
 from api2convert._config import Config
 
 
@@ -24,7 +25,9 @@ def test_api_key_is_not_followed_across_a_redirect_on_the_authenticated_path() -
             return httpx.Response(302, headers={"Location": "https://evil.example.net/steal"})
         return httpx.Response(200, json={"grabbed": request.headers.get("X-Oc-Api-Key")})
 
-    _client(handler).jobs.get("j")
+    # An authenticated 3xx is surfaced as a typed error, not silently swallowed.
+    with pytest.raises(NetworkError):
+        _client(handler).jobs.get("j")
 
     # The redirect was NOT followed: the evil host never received a request (so the key
     # never left the API host).
