@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import httpx
 import pytest
 
 from api2convert import Api2Convert, NetworkError, OutputFile
 from api2convert._config import Config
+from api2convert._transport import Transport
 
 
 def _client(handler: object) -> Api2Convert:
@@ -82,6 +85,71 @@ def test_download_password_survives_a_same_origin_redirect() -> None:
     assert client.download(output).contents(download_password="s3cret") == b"BYTES"
 
     assert passwords == ["s3cret", "s3cret"]
+
+
+def test_control_plane_body_over_the_cap_is_rejected_without_buffering_it() -> None:
+    cap = Transport.MAX_RESPONSE_BYTES
+    chunk = b"x" * (1024 * 1024)  # 1 MiB
+    produced = 0
+
+    def body() -> Iterator[bytes]:
+        nonlocal produced
+        # Far more than the cap: an unbounded read would materialize all of this in
+        # memory (the OOM this guard exists to prevent).
+        for _ in range(cap // len(chunk) + 8):
+            produced += len(chunk)
+            yield chunk
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body())
+
+    with pytest.raises(NetworkError, match="16 MiB"):
+        _client(handler).jobs.get("j")
+
+    # The SDK stopped reading at the cap instead of draining the whole (over-cap)
+    # stream: the body was never buffered unboundedly into memory.
+    assert produced <= cap + len(chunk)
+
+
+def test_error_body_over_the_cap_surfaces_as_a_network_error() -> None:
+    cap = Transport.MAX_RESPONSE_BYTES
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        # A non-retryable status so the error body is read once, without real backoff.
+        return httpx.Response(400, content=b"E" * (cap + 1))
+
+    with pytest.raises(NetworkError, match="16 MiB"):
+        _client(handler).jobs.get("j")
+
+
+def test_control_plane_body_at_the_cap_is_still_accepted() -> None:
+    cap = Transport.MAX_RESPONSE_BYTES
+    # A body exactly at the cap: a job payload padded to the limit with insignificant
+    # JSON whitespace before the closing brace (still valid JSON).
+    payload = b'{"id":"j"' + b" " * (cap - 10) + b"}"
+    assert len(payload) == cap
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=payload, headers={"content-type": "application/json"})
+
+    job = _client(handler).jobs.get("j")
+    assert job.id == "j"
+
+
+def test_a_mid_body_network_drop_on_a_success_response_surfaces_as_a_typed_error() -> None:
+    # Streaming the control-plane body (so the cap can bound it before httpx buffers) moves
+    # the read out of send()'s httpx-error guard into the interpret path. A mid-body transport
+    # failure on a 2xx must therefore still be converted to the SDK's typed NetworkError, never
+    # leak a raw httpx.ReadError out of the exception hierarchy.
+    def body() -> Iterator[bytes]:
+        yield b'{"id":'
+        raise httpx.ReadError("connection reset mid-stream")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body())
+
+    with pytest.raises(NetworkError):
+        _client(handler).jobs.get("j")
 
 
 def test_config_repr_does_not_leak_the_api_key() -> None:

@@ -51,7 +51,7 @@ class FileUploader:
             )
 
         try:
-            response = self._transport.send(build, replayable=seekable)
+            response = self._transport.send(build, stream=True, replayable=seekable)
             return InputFile.from_dict(self._transport.interpret(response))
         finally:
             if opened is not None:

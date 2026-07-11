@@ -57,6 +57,12 @@ class Transport:
     #: Upper bound for an honored ``Retry-After`` — a hostile/misconfigured value
     #: asking for an absurd delay can never stall a worker for hours.
     MAX_RETRY_AFTER_SECONDS = 120.0
+    #: Caps how much of a control-plane (API / error) JSON body the SDK buffers into
+    #: memory, so a hostile or buggy server cannot force an unbounded read (OOM) on
+    #: these paths. The control-plane request is streamed for exactly this reason —
+    #: with a buffered read httpx would already hold the whole body before the SDK
+    #: could cap it. File downloads are streamed to disk and bounded separately.
+    MAX_RESPONSE_BYTES = 16 * 1024 * 1024  # 16 MiB
 
     def __init__(
         self,
@@ -119,7 +125,7 @@ class Transport:
         def build() -> httpx.Request:
             return self.build_request(method, url, headers=request_headers, content=content)
 
-        return self.interpret(self.send(build))
+        return self.interpret(self.send(build, stream=True))
 
     def send(
         self,
@@ -204,7 +210,7 @@ class Transport:
                 "the request was not followed."
             )
 
-        raw = response.content
+        raw = self._read_capped(response)
         if not raw:
             return {}
         try:
@@ -341,13 +347,42 @@ class Transport:
 
     def _decode_safe(self, response: httpx.Response) -> dict[str, Any]:
         try:
-            raw = response.read()
+            raw = self._read_capped(response)
             if not raw:
                 return {}
             decoded = json.loads(raw)
         except (ValueError, httpx.StreamError):
             return {}
         return decoded if isinstance(decoded, dict) else {}
+
+    def _read_capped(self, response: httpx.Response) -> bytes:
+        """Read a control-plane body into memory, bounded at ``MAX_RESPONSE_BYTES``.
+
+        The control-plane request is streamed (``stream=True``) precisely so httpx
+        does not eagerly buffer the whole body during ``send()``; this reads it back
+        through a bounded accumulator so a hostile or buggy server cannot force an
+        unbounded in-memory read (OOM) on the JSON / error path. A body over the cap
+        raises :class:`NetworkError` — the SDK never buffers past the cap. The
+        response is closed once the body is consumed.
+        """
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            for chunk in response.iter_bytes():
+                total += len(chunk)
+                if total > self.MAX_RESPONSE_BYTES:
+                    raise NetworkError("API2Convert response body exceeds 16 MiB.")
+                chunks.append(chunk)
+        except (httpx.TransportError, httpx.StreamError) as exc:
+            # Reading a streamed control-plane body is a network operation; a mid-body
+            # failure (e.g. httpx.ReadError) must surface as a typed NetworkError, not a
+            # raw httpx error escaping the SDK hierarchy — mirroring send()'s guard on the
+            # request path. (With the old buffered stream=False read this could not happen:
+            # the body was consumed inside send()'s guarded call.)
+            raise NetworkError(f"The API response could not be read: {exc}") from exc
+        finally:
+            response.close()
+        return b"".join(chunks)
 
     def _backoff(self, attempt: int, retry_after: str = "") -> None:
         retry = self._parse_retry_after(retry_after)
