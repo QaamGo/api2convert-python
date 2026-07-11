@@ -10,10 +10,13 @@ from __future__ import annotations
 import contextlib
 import os
 import posixpath
+import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import IO, TYPE_CHECKING
 
-from .errors import Api2ConvertError
+import httpx
+
+from .errors import Api2ConvertError, NetworkError
 from .models import Job, OutputFile
 
 if TYPE_CHECKING:
@@ -59,33 +62,66 @@ class FileDownload:
         except OSError as exc:
             raise Api2ConvertError(f"Could not create directory: {parent}") from exc
 
+        # Stream to a sibling temp file and atomically rename over the target only after a
+        # clean write+close. This never truncates the target up front and never destroys a
+        # pre-existing complete file on a mid-stream failure — a download either fully replaces
+        # the target or leaves it untouched.
         try:
-            handle = open(target, "wb")  # noqa: SIM115 — closed by the with-block below
+            fd, temp = tempfile.mkstemp(prefix=".a2c-download-", suffix=".part", dir=parent)
         except OSError as exc:
-            raise Api2ConvertError(f"Could not open file for writing: {target}") from exc
+            raise Api2ConvertError(f"Could not write file: {target}") from exc
 
+        committed = False
         try:
-            with (
-                handle,
-                self._transport.stream(
-                    self._output.uri, self._headers(download_password)
-                ) as source,
-            ):
-                for chunk in source.iter_bytes(self._CHUNK_SIZE):
-                    handle.write(chunk)
-        except BaseException:
-            # A mid-stream failure (network drop, disk full, interrupt) must not leave
-            # a truncated file the caller could mistake for a complete download.
-            with contextlib.suppress(OSError):
-                os.unlink(target)
-            raise
+            try:
+                with (
+                    os.fdopen(fd, "wb") as handle,
+                    self._transport.stream(
+                        self._output.uri, self._headers(download_password)
+                    ) as source,
+                ):
+                    self._copy(source, handle)
+                # The with-block flushed and closed the temp file; a close/flush error would
+                # have propagated here (never a silently truncated file). Rename only now.
+                os.replace(temp, target)
+                committed = True
+            except OSError as exc:
+                # A read-side (network) failure is a NetworkError raised by _copy and passes
+                # straight through; reaching this catch means a write / flush / rename failure —
+                # a genuine filesystem error.
+                raise Api2ConvertError(f"Could not write file: {target}") from exc
+        finally:
+            if not committed:
+                with contextlib.suppress(OSError):
+                    os.unlink(temp)
 
         return Path(target)
+
+    def _copy(self, source: httpx.Response, handle: IO[bytes]) -> None:
+        """Stream the download body into ``handle``, attributing a mid-stream failure by side.
+
+        A read fault on the network response surfaces as a typed :class:`NetworkError`; a write
+        fault propagates as ``OSError`` for the caller to label as a filesystem error.
+        """
+        iterator = source.iter_bytes(self._CHUNK_SIZE)
+        while True:
+            try:
+                chunk = next(iterator)
+            except StopIteration:
+                break
+            except httpx.HTTPError as exc:
+                raise NetworkError(f"The download was interrupted: {exc}") from exc
+            handle.write(chunk)
 
     def contents(self, download_password: str | None = None) -> bytes:
         """Download the file and return its contents (loads into memory)."""
         with self._transport.stream(self._output.uri, self._headers(download_password)) as source:
-            return source.read()
+            try:
+                return source.read()
+            except httpx.HTTPError as exc:
+                # Reading the response body is a network operation; a mid-stream failure is a
+                # transport error, so surface it as a typed NetworkError, not raw httpx.
+                raise NetworkError(f"The download was interrupted: {exc}") from exc
 
     def _resolve_target(self, path_or_dir: str) -> str:
         looks_like_dir = (
