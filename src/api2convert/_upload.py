@@ -47,7 +47,10 @@ class FileUploader:
             if seekable:
                 stream.seek(0)
             return self._transport.build_request(
-                "POST", url, headers={"X-Api2convert-Token": token}, files={"file": (resolved_name, stream)}
+                "POST",
+                url,
+                headers={"X-Api2convert-Token": token},
+                files={"file": (resolved_name, stream)},
             )
 
         try:

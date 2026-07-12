@@ -95,7 +95,8 @@ def test_local_file_stages_uploads_then_starts(
     assert upload.method == "POST"
     assert str(upload.url) == "https://www2.api2convert.com/v2/upload-file/job-9"
     assert upload.headers["X-Api2convert-Token"] == "tok-abc"
-    assert "x-api2convert-api-key" not in upload.headers  # the account key must NOT leak to the upload
+    # the account key must NOT leak to the upload
+    assert "x-api2convert-api-key" not in upload.headers
     assert "multipart/form-data" in upload.headers["content-type"]
     assert b'name="file"' in api.body_at(1)
 
