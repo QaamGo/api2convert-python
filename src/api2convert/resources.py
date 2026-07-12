@@ -16,6 +16,7 @@ from typing import IO, TYPE_CHECKING, Any
 from urllib.parse import quote
 
 from ._config import MAX_POLL_TIMEOUT, MIN_POLL_INTERVAL
+from .cloud import CloudInput
 from .errors import ConversionFailedError, ConversionTimeoutError
 from .models import InputFile, Job, OutputFile, Preset
 
@@ -77,13 +78,17 @@ class JobsResource:
         """Cancel a job (whether staged or processing)."""
         self._transport.request("DELETE", f"/jobs/{_seg(job_id)}")
 
-    def add_input(self, job_id: str, descriptor: Mapping[str, Any]) -> InputFile:
-        """Attach an input by descriptor, e.g. a remote URL.
+    def add_input(self, job_id: str, descriptor: CloudInput | Mapping[str, Any]) -> InputFile:
+        """Attach an input — a :class:`~api2convert.cloud.CloudInput` builder, or a raw descriptor.
 
-        ``add_input(job_id, {"type": "remote", "source": "https://..."})``.
+        ``add_input(job_id, {"type": "remote", "source": "https://..."})``, a
+        Google Drive picker (``{"type": "gdrive_picker", "source": <file-id>,
+        "credentials": {"token": ...}}``), or ``add_input(job_id,
+        CloudInput.ftp(...))``.
         """
+        body = descriptor.to_dict() if isinstance(descriptor, CloudInput) else descriptor
         return InputFile.from_dict(
-            self._transport.request("POST", f"/jobs/{_seg(job_id)}/input", descriptor)
+            self._transport.request("POST", f"/jobs/{_seg(job_id)}/input", body)
         )
 
     def upload(

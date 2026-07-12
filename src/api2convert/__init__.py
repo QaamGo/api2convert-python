@@ -16,6 +16,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from ._client import Api2Convert
 from ._config import Config
+from .cloud import CloudInput, CloudProvider, OutputTarget
 from .errors import (
     Api2ConvertError,
     ApiError,
@@ -61,6 +62,8 @@ __all__ = [
     "Api2ConvertError",
     "ApiError",
     "AuthenticationError",
+    "CloudInput",
+    "CloudProvider",
     "Config",
     "ConfigurationError",
     "Conversion",
@@ -76,6 +79,7 @@ __all__ = [
     "NetworkError",
     "NotFoundError",
     "OutputFile",
+    "OutputTarget",
     "PaymentRequiredError",
     "Preset",
     "RateLimitError",

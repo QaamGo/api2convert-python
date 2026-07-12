@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from types import TracebackType
 from typing import IO, Any
 
@@ -17,6 +17,7 @@ import httpx
 from ._config import Config
 from ._transport import Transport
 from ._upload import FileUploader
+from .cloud import CloudInput, OutputTarget
 from .errors import ConfigurationError
 from .models import Job, OutputFile
 from .resources import (
@@ -96,7 +97,7 @@ class Api2Convert:
 
     def convert(
         self,
-        source: str | os.PathLike[str] | IO[bytes],
+        source: str | os.PathLike[str] | IO[bytes] | CloudInput,
         to: str,
         options: Mapping[str, Any] | None = None,
         *,
@@ -105,16 +106,25 @@ class Api2Convert:
         output_index: int | None = None,
         filename: str | None = None,
         download_password: str | None = None,
+        output_targets: Sequence[OutputTarget] | None = None,
     ) -> ConversionResult:
         """Convert a file and wait for the result.
 
-        Hand it a local path, a public URL, or an open stream, name the target
-        format, and get back a result you can ``save()``. ``options`` are the
-        target-specific conversion options (discover them via :meth:`options`).
-        A ``download_password`` is remembered and applied automatically on download.
+        Hand it a local path, a public URL, an open stream, or a
+        :class:`~api2convert.cloud.CloudInput` (import straight from customer
+        storage — a started job, like a remote URL). Name the target format and
+        get back a result you can ``save()``. ``options`` are the target-specific
+        conversion options (discover them via :meth:`options`). A
+        ``download_password`` is remembered and applied automatically on download.
+
+        Pass ``output_targets`` (a list of :class:`~api2convert.cloud.OutputTarget`)
+        to deliver the output(s) to customer storage instead of producing a
+        downloadable file — the job then completes with **no** local output and
+        the returned result is not downloaded (there is nothing to fetch). Output
+        targets are never merged into the ``options`` map.
         """
         job = self._start_conversion(
-            source, to, options, category, None, filename, download_password
+            source, to, options, category, None, filename, download_password, output_targets
         )
         done = self._jobs.wait(job.id, timeout)
         return ConversionResult(
@@ -126,7 +136,7 @@ class Api2Convert:
 
     def convert_async(
         self,
-        source: str | os.PathLike[str] | IO[bytes],
+        source: str | os.PathLike[str] | IO[bytes] | CloudInput,
         to: str,
         options: Mapping[str, Any] | None = None,
         *,
@@ -134,14 +144,18 @@ class Api2Convert:
         category: str | None = None,
         filename: str | None = None,
         download_password: str | None = None,
+        output_targets: Sequence[OutputTarget] | None = None,
     ) -> Job:
         """Start a conversion without waiting.
 
         Pass a ``callback`` URL to be notified (sets ``notify_status``), or poll
         later with ``client.jobs.get(job.id)`` / ``client.jobs.wait(job.id)``.
+        Accepts the same ``source`` kinds as :meth:`convert` (including a
+        :class:`~api2convert.cloud.CloudInput`) and the same ``output_targets``
+        control (never merged into ``options``).
         """
         return self._start_conversion(
-            source, to, options, category, callback, filename, download_password
+            source, to, options, category, callback, filename, download_password, output_targets
         )
 
     def download(self, output: OutputFile, download_password: str | None = None) -> FileDownload:
@@ -199,19 +213,24 @@ class Api2Convert:
 
     def _start_conversion(
         self,
-        source: str | os.PathLike[str] | IO[bytes],
+        source: str | os.PathLike[str] | IO[bytes] | CloudInput,
         to: str,
         options: Mapping[str, Any] | None,
         category: str | None,
         callback: str | None,
         filename: str | None,
         download_password: str | None,
+        output_targets: Sequence[OutputTarget] | None = None,
     ) -> Job:
         conversion: dict[str, Any] = {"target": to}
         if category is not None:
             conversion["category"] = category
         if options:
             conversion["options"] = dict(options)
+        # Cloud delivery targets attach to the conversion's output_target — never
+        # merged into the options map (so open-ended API options can't collide).
+        if output_targets:
+            conversion["output_target"] = [target.to_dict() for target in output_targets]
 
         payload: dict[str, Any] = {"conversion": [conversion]}
         if callback is not None:
@@ -219,6 +238,13 @@ class Api2Convert:
             payload["notify_status"] = True
         if download_password is not None:
             payload["download_passwords"] = [download_password]
+
+        # A cloud input imports from customer storage — a started job with the descriptor
+        # inline, exactly like a remote URL (never staged/uploaded).
+        if isinstance(source, CloudInput):
+            payload["process"] = True
+            payload["input"] = [source.to_dict()]
+            return self._jobs.create(payload)
 
         if isinstance(source, str) and _URL_RE.match(source):
             payload["process"] = True

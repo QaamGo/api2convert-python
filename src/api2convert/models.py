@@ -14,6 +14,21 @@ from enum import Enum
 from typing import Any
 
 from . import _data
+from .cloud import CloudProvider, OutputTarget
+
+__all__ = [
+    "CloudProvider",
+    "Conversion",
+    "InputFile",
+    "InputType",
+    "Job",
+    "JobMessage",
+    "JobStatus",
+    "OutputFile",
+    "OutputTarget",
+    "Preset",
+    "Status",
+]
 
 
 class JobStatus(str, Enum):
@@ -87,6 +102,8 @@ class Conversion:
     category: str | None = None
     options: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    output_targets: list[OutputTarget] = field(default_factory=list)
+    """Cloud delivery targets for this conversion's output, if any (read-side)."""
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> Conversion:
@@ -96,6 +113,7 @@ class Conversion:
             category=_data.nullable_str(data.get("category")),
             options=_data.as_object(data.get("options")),
             metadata=_data.as_object(data.get("metadata")),
+            output_targets=_data.map_objects(data.get("output_target"), OutputTarget.from_dict),
         )
 
 
@@ -111,6 +129,11 @@ class InputFile:
     size: int | None = None
     content_type: str | None = None
     options: dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
+    """Cloud-input locator keys (``bucket``, ``file``, ``host``, …); empty for non-cloud inputs.
+
+    Credentials are never surfaced on read (the API returns them empty).
+    """
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> InputFile:
@@ -123,6 +146,7 @@ class InputFile:
             size=_data.nullable_int(data.get("size")),
             content_type=_data.nullable_str(data.get("content_type")),
             options=_data.as_object(data.get("options")),
+            parameters=_data.as_object(data.get("parameters")),
         )
 
 

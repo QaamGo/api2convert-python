@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from . import _redact
+
 if TYPE_CHECKING:
     from .models import Job, JobMessage
 
@@ -52,8 +54,13 @@ class ApiError(Api2ConvertError):
         self.status_code = status_code
         #: Value of the ``X-Request-Id`` response header, if any. Quote it in support requests.
         self.request_id = request_id
-        #: The decoded JSON error body, or ``{}`` when absent/unparseable.
-        self.body: dict[str, Any] = body if body is not None else {}
+        #: The decoded JSON error body, or ``{}`` when absent/unparseable. Cloud
+        #: credentials ride in the plaintext request body, so the body is deep-walked
+        #: and any sensitive key's value is masked to ``[REDACTED]`` before it is
+        #: stored — belt-and-suspenders against a future server/proxy echoing a value
+        #: (the API only ever echoes field *names*). The ``message`` is server text and
+        #: is never derived from the request body.
+        self.body: dict[str, Any] = _redact.redact_body(body) if body else {}
 
 
 class AuthenticationError(ApiError):
