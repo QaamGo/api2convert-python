@@ -113,6 +113,52 @@ except SignatureVerificationError:
 > sent — call `Api2Convert.webhooks().parse(payload)` (or pass an empty secret) to deserialize the
 > callback without verifying.
 
+## Cloud storage
+
+Read an input straight from your own cloud storage, and/or deliver the converted output into a
+bucket — no local upload or download in between. Supports Amazon S3, Azure, FTP and Google Cloud.
+
+Import an input with the per-provider `CloudInput` factory (keys are flat and lowercase, exactly as
+the API expects) and convert it like any other source:
+
+```python
+from api2convert import Api2Convert, CloudInput
+
+client = Api2Convert("YOUR_API_KEY")
+
+s3_input = CloudInput.amazon_s3(
+    bucket="my-bucket",
+    file="invoices/report.docx",
+    accesskeyid="AKIA...",
+    secretaccesskey="...",
+)
+
+client.convert(s3_input, "pdf").save("report.pdf")
+```
+
+To deliver the result into a bucket instead, attach an `OutputTarget` via `output_targets`. When any
+output target is set the conversion delivers straight to your storage and produces **no** local file
+— so there is nothing to `save()`:
+
+```python
+from api2convert import Api2Convert, CloudProvider, OutputTarget
+
+client = Api2Convert("YOUR_API_KEY")
+
+target = OutputTarget.of(
+    CloudProvider.AMAZON_S3,
+    parameters={"bucket": "my-bucket", "file": "out/report.pdf"},
+    credentials={"accesskeyid": "AKIA...", "secretaccesskey": "..."},
+)
+
+# Delivered to the bucket — the job completes without a downloadable output.
+client.convert("report.docx", "pdf", output_targets=[target])
+```
+
+`azure(...)`, `ftp(...)` and `google_cloud(...)` build inputs the same way; output uses the generic
+`OutputTarget` for every provider. Credentials ride in the request body but are **redacted** in
+exception messages and object inspection (`repr`) as `[REDACTED]` — they are never logged or printed.
+
 ## Error handling
 
 Every failure is a typed exception extending `api2convert.Api2ConvertError`:
