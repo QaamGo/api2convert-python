@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           # Type-check on the highest supported Python so version-sensitive findings are exercised.
-          python-version: '3.13'
+          python-version: '3.14'
       - run: pip install -e '.[dev]'
       - name: Ruff (lint)
         run: ruff check src tests examples
@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.10', '3.11', '3.12', '3.13']
+        python: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
